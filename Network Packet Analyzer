@@ -1,0 +1,43 @@
+import socket
+import struct
+def parse_ip_header(data):
+    ip_header = struct.unpack('!BBHHHBBH4s4s', data[:20])
+    version_ihl = ip_header[0]
+    version = version_ihl >> 4
+    ihl = version_ihl & 0xF
+    iph_length = ihl * 4
+    protocol = ip_header[6]
+    src_ip = socket.inet_ntoa(ip_header[8])
+    dst_ip = socket.inet_ntoa(ip_header[9])
+    return protocol, src_ip, dst_ip, data[iph_length:]
+def main():
+    print("=== Windows Network Packet Analyzer ===")
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)    
+        host = socket.gethostbyname(socket.gethostname())
+        sock.bind((host, 0))
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+        sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
+        print(f"Sniffing on: {host}")
+        while True:
+            data, addr = sock.recvfrom(65565)
+            proto, src, dst, payload = parse_ip_header(data)          
+            if proto == 1:
+                proto_name = "ICMP"
+            elif proto == 6:
+                proto_name = "TCP"
+            elif proto == 17:
+                proto_name = "UDP"
+            else:
+                proto_name = f"Other ({proto})"           
+            print(f"{src} -> {dst} | Protocol: {proto_name} | Payload: {len(payload)} bytes")
+    except PermissionError:
+        print("Permission denied. Run this script as administrator.")
+    except KeyboardInterrupt:
+        print("\nSniffer stopped by user.")
+        sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
+    except Exception as e:
+        print(f"Error: {e}")
+        sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_OFF)
+if __name__ == "__main__":
+    main()
